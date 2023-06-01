@@ -1,13 +1,13 @@
 [package]
 name = "it7259"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 authors = ["Andelf <andelf@gmail.com>"]
 repository = "https://github.com/andelf/it7259"
 documentation = "https://docs.rs/it7259"
 homepage = "https://github.com/andelf/it7259"
-categories = []
-description = ""
+categories = ["embedded", "no-std", "driver"]
+description = "embedded-hal driver of IT7259 touch controller"
 keywords = ["it7259", "it7257"]
 readme = "README.md"
 license = "MIT/Apache-2.0"
@@ -16,5 +16,7 @@ license = "MIT/Apache-2.0"
 
 [dependencies]
 defmt = { version = "0.3.4", optional = true }
-embedded-hal-02 = { package = "embedded-hal", version = "0.2", features = ["unproven"] }
-embedded-hal-1 = {  package = "embedded-hal", version = "1.0.0-alpha.10" }
+embedded-hal-02 = { package = "embedded-hal", version = "0.2", features = [
+    "unproven",
+] }
+embedded-hal-1 = { package = "embedded-hal", version = "1.0.0-alpha.10" }
