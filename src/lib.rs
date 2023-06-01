@@ -1,3 +1,9 @@
+//! IT7259 is a single-chip capacitive touch controller for touch screen applications.
+//! It supports up to 10 touch points and gesture recognition with a built-in 32-bit CPU.
+//! It also supports I2C interface and firmware update.
+//! This crate provides a platform agnostic driver for the IT7259 touch controller.
+//! It was built using [`embedded-hal`] traits.
+
 #![no_std]
 
 use embedded_hal_1::{delay::DelayUs, digital::OutputPin, i2c::I2c};
@@ -14,7 +20,7 @@ const BUFFER_TYPE_RESPONSE: u8 = 0b101_00000; // 0xa0
 /// Point Information Buffer, read only
 const BUFFER_TYPE_POINT_INFO: u8 = 0b111_00000; // 0xe0
 
-mod commands {
+pub mod commands {
     pub const DEVICE_NAME: u8 = 0x00;
 
     /// Get Cap Sensor Information
@@ -392,6 +398,37 @@ where
         Ok(None)
     }
 
+    /// (x, y, scale)
+    pub fn get_resolution(&mut self) -> Result<(u16, u16, u8), I2C::Error> {
+        let mut buf = [0u8; 0x0e];
+        self.transfer_subcommand(
+            commands::GET_SENSOR_INFO,
+            commands::sensor_info::RESOLUTIONS_2D,
+            &mut buf,
+        )?;
+
+        let x = u16::from_le_bytes([buf[2], buf[3]]);
+        let y = u16::from_le_bytes([buf[4], buf[5]]);
+        let scale = buf[6];
+
+        Ok((x, y, scale))
+    }
+
+    /// Each bit presents a gesture ID.
+    /// (1 finger gesture, 2 fingers gesture, 3 fingers gesture)
+    /// 0: Gesture ID is not supported.
+    /// 1: Gesture ID is supported.
+    pub fn get_gesture_support(&mut self) -> Result<(u32, u32, u32), I2C::Error> {
+        let mut buf = [0u8; 0x0e];
+        self.transfer_subcommand(commands::GET_SENSOR_INFO, commands::sensor_info::GESTURE_INFO, &mut buf)?;
+
+        let gesture_1finger = u32::from_le_bytes([buf[2], buf[3], buf[4], buf[5]]);
+        let gesture_2finger = u32::from_le_bytes([buf[6], buf[7], buf[8], buf[9]]);
+        let gesture_3finger = u32::from_le_bytes([buf[10], buf[11], buf[12], buf[13]]);
+
+        Ok((gesture_1finger, gesture_2finger, gesture_3finger))
+    }
+
     pub fn get_interrupt(&mut self) -> Result<Option<InterruptTrigger>, I2C::Error> {
         let mut buf = [0u8; 2];
         self.transfer_raw_command(
@@ -499,10 +536,35 @@ where
 
     fn transfer_command(&mut self, command: u8, buf: &mut [u8]) -> Result<(), I2C::Error> {
         self.i2c.write(self.addr, &[BUFFER_TYPE_COMMAND, command])?;
-        self.i2c.write_read(self.addr, &[BUFFER_TYPE_QUERY], &mut buf[..1])?;
-        let query_data = buf[0];
-        if query_data & 0b11 != 0 {
-            todo!();
+        loop {
+            self.i2c.write_read(self.addr, &[BUFFER_TYPE_QUERY], &mut buf[..1])?;
+            if buf[0] & 0b11 == 0 {
+                break;
+            } else if buf[0] & 0b11 == 0b01 {
+                // busy
+            } else {
+                #[cfg(feature = "defmt")]
+                defmt::error!("error {}", buf[0]);
+                todo!();
+            }
+        }
+        self.i2c.write_read(self.addr, &[BUFFER_TYPE_RESPONSE], buf)?;
+        Ok(())
+    }
+
+    fn transfer_subcommand(&mut self, command: u8, subcommand: u8, buf: &mut [u8]) -> Result<(), I2C::Error> {
+        self.i2c.write(self.addr, &[BUFFER_TYPE_COMMAND, command, subcommand])?;
+        loop {
+            self.i2c.write_read(self.addr, &[BUFFER_TYPE_QUERY], &mut buf[..1])?;
+            if buf[0] & 0b11 == 0 {
+                break;
+            } else if buf[0] & 0b11 == 0b01 {
+                // busy
+            } else {
+                #[cfg(feature = "defmt")]
+                defmt::error!("error {}", buf[0]);
+                todo!();
+            }
         }
         self.i2c.write_read(self.addr, &[BUFFER_TYPE_RESPONSE], buf)?;
         Ok(())
@@ -517,8 +579,7 @@ where
             if query_data & 0b11 == 0 {
                 break;
             } else if query_data & 0b11 == 0b01 {
-                #[cfg(feature = "defmt")]
-                defmt::error!("busy");
+                // busy
             } else {
                 #[cfg(feature = "defmt")]
                 defmt::error!("error {}", query_data);
