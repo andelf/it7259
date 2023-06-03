@@ -260,15 +260,6 @@ impl Gesture {
     }
 }
 
-/// Format Tag (1000b)
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct GestureReport {
-    /// Gesture Identification (GID)
-    pub gid: u8,
-    pub info: [u8; 11],
-}
-
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct TouchReport {
@@ -377,7 +368,7 @@ where
         if &raw[0..3] != b"ITE" {
             todo!();
         }
-        if &raw[3..6] != b"7259" {
+        if &raw[3..6] != b"7259" && &raw[3..6] != b"7257" {
             todo!();
         }
         Ok(())
